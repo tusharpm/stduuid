@@ -45,11 +45,9 @@
 namespace uuids
 {
 #ifdef __cpp_lib_span
-   template <class ElementType, std::size_t Extent>
-   using span = std::span<ElementType, Extent>;
+   using std::span;
 #else
-   template <class ElementType, std::ptrdiff_t Extent>
-   using span = gsl::span<ElementType, Extent>;
+   using gsl::span;
 #endif
 
    namespace detail
@@ -94,122 +92,50 @@ namespace uuids
       class sha1
       {
       public:
-         using digest32_t = uint32_t[5];
-         using digest8_t = uint8_t[20];
-
-         static constexpr unsigned int block_bytes = 64;
-
-         inline static uint32_t left_rotate(uint32_t value, size_t const count) 
-         {
-            return (value << count) ^ (value >> (32 - count));
-         }
-
-         sha1() { reset(); }
-
-         void reset() 
-         {
-            m_digest[0] = 0x67452301;
-            m_digest[1] = 0xEFCDAB89;
-            m_digest[2] = 0x98BADCFE;
-            m_digest[3] = 0x10325476;
-            m_digest[4] = 0xC3D2E1F0;
-            m_blockByteIndex = 0;
-            m_byteCount = 0;
-         }
+         using digest8_t = std::array<uint8_t, 20>;
 
          void process_byte(uint8_t octet) 
          {
             this->m_block[this->m_blockByteIndex++] = octet;
             ++this->m_byteCount;
-            if (m_blockByteIndex == block_bytes)
+            if (m_blockByteIndex == m_block.size())
             {
                this->m_blockByteIndex = 0;
                process_block();
             }
          }
 
-         void process_block(void const * const start, void const * const end) 
-         {
-            const uint8_t* begin = static_cast<const uint8_t*>(start);
-            const uint8_t* finish = static_cast<const uint8_t*>(end);
-            while (begin != finish) 
-            {
-               process_byte(*begin);
-               begin++;
-            }
-         }
-
          void process_bytes(void const * const data, size_t const len)
          {
             const uint8_t* block = static_cast<const uint8_t*>(data);
-            process_block(block, block + len);
+            for (uint8_t octet : span(block, len))
+            {
+               process_byte(octet);
+            }
          }
 
-         uint32_t const * get_digest(digest32_t digest) 
+         digest8_t get_digest_bytes()
          {
-            size_t const bitCount = this->m_byteCount * 8;
-            process_byte(0x80);
-            if (this->m_blockByteIndex > 56) {
-               while (m_blockByteIndex != 0) {
-                  process_byte(0);
-               }
-               while (m_blockByteIndex < 56) {
-                  process_byte(0);
-               }
-            }
-            else {
-               while (m_blockByteIndex < 56) {
-                  process_byte(0);
-               }
-            }
-            process_byte(0);
-            process_byte(0);
-            process_byte(0);
-            process_byte(0);
-            process_byte(static_cast<unsigned char>((bitCount >> 24) & 0xFF));
-            process_byte(static_cast<unsigned char>((bitCount >> 16) & 0xFF));
-            process_byte(static_cast<unsigned char>((bitCount >> 8) & 0xFF));
-            process_byte(static_cast<unsigned char>((bitCount) & 0xFF));
-
-            memcpy(digest, m_digest, 5 * sizeof(uint32_t));
-            return digest;
-         }
-
-         uint8_t const * get_digest_bytes(digest8_t digest) 
-         {
-            digest32_t d32;
-            get_digest(d32);
+            calculate_digest();
+            digest8_t digest;
             size_t di = 0;
-            digest[di++] = (uint8_t)(d32[0] >> 24);
-            digest[di++] = (uint8_t)(d32[0] >> 16);
-            digest[di++] = (uint8_t)(d32[0] >>  8);
-            digest[di++] = (uint8_t)(d32[0] >>  0);
-
-            digest[di++] = (uint8_t)(d32[1] >> 24);
-            digest[di++] = (uint8_t)(d32[1] >> 16);
-            digest[di++] = (uint8_t)(d32[1] >>  8);
-            digest[di++] = (uint8_t)(d32[1] >>  0);
-
-            digest[di++] = (uint8_t)(d32[2] >> 24);
-            digest[di++] = (uint8_t)(d32[2] >> 16);
-            digest[di++] = (uint8_t)(d32[2] >>  8);
-            digest[di++] = (uint8_t)(d32[2] >>  0);
-
-            digest[di++] = (uint8_t)(d32[3] >> 24);
-            digest[di++] = (uint8_t)(d32[3] >> 16);
-            digest[di++] = (uint8_t)(d32[3] >>  8);
-            digest[di++] = (uint8_t)(d32[3] >>  0);
-
-            digest[di++] = (uint8_t)(d32[4] >> 24);
-            digest[di++] = (uint8_t)(d32[4] >> 16);
-            digest[di++] = (uint8_t)(d32[4] >>  8);
-            digest[di++] = (uint8_t)(d32[4] >>  0);
-
+            for (uint32_t d32 : m_digest)
+            {
+               digest[di++] = static_cast<uint8_t>(d32 >> 24);
+               digest[di++] = static_cast<uint8_t>(d32 >> 16);
+               digest[di++] = static_cast<uint8_t>(d32 >>  8);
+               digest[di++] = static_cast<uint8_t>(d32 >>  0);
+            }
             return digest;
          }
 
       private:
-         void process_block() 
+         static uint32_t left_rotate(uint32_t value, size_t const count) 
+         {
+            return (value << count) ^ (value >> (32 - count));
+         }
+
+         void process_block()
          {
             uint32_t w[80];
             for (size_t i = 0; i < 16; i++) {
@@ -222,11 +148,7 @@ namespace uuids
                w[i] = left_rotate((w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]), 1);
             }
 
-            uint32_t a = m_digest[0];
-            uint32_t b = m_digest[1];
-            uint32_t c = m_digest[2];
-            uint32_t d = m_digest[3];
-            uint32_t e = m_digest[4];
+            auto [a, b, c, d, e] = m_digest;
 
             for (std::size_t i = 0; i < 80; ++i) 
             {
@@ -264,11 +186,29 @@ namespace uuids
             m_digest[4] += e;
          }
 
+         void calculate_digest()
+         {
+            size_t const bitCount = this->m_byteCount * 8;
+            process_byte(0x80);
+            if (this->m_blockByteIndex > 56) {
+               while (m_blockByteIndex != 0) {
+                  process_byte(0);
+               }
+            }
+            while (m_blockByteIndex < 60) {
+               process_byte(0);
+            }
+            process_byte(static_cast<unsigned char>((bitCount >> 24) & 0xFF));
+            process_byte(static_cast<unsigned char>((bitCount >> 16) & 0xFF));
+            process_byte(static_cast<unsigned char>((bitCount >> 8) & 0xFF));
+            process_byte(static_cast<unsigned char>((bitCount) & 0xFF));
+         }
+
       private:
-         digest32_t m_digest;
-         uint8_t m_block[64];
-         size_t m_blockByteIndex;
-         size_t m_byteCount;
+         std::array<uint32_t, 5> m_digest = {0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0};
+         std::array<uint8_t, 64> m_block;
+         size_t m_blockByteIndex = 0;
+         size_t m_byteCount = 0;
       };
    }
 
@@ -383,23 +323,20 @@ namespace uuids
 
       constexpr uuid_version version() const noexcept
       {
-         if ((data[6] & 0xF0) == 0x10)
-            return uuid_version::time_based;
-         else if ((data[6] & 0xF0) == 0x20)
-            return uuid_version::dce_security;
-         else if ((data[6] & 0xF0) == 0x30)
-            return uuid_version::name_based_md5;
-         else if ((data[6] & 0xF0) == 0x40)
-            return uuid_version::random_number_based;
-         else if ((data[6] & 0xF0) == 0x50)
-            return uuid_version::name_based_sha1;
-         else
-            return uuid_version::none;
+         switch(data[6] >> 4)
+         {
+            case 1: return uuid_version::time_based;
+            case 2: return uuid_version::dce_security;
+            case 3: return uuid_version::name_based_md5;
+            case 4: return uuid_version::random_number_based;
+            case 5: return uuid_version::name_based_sha1;
+            default: return uuid_version::none;
+         }
       }
 
       constexpr bool is_nil() const noexcept
       {
-         for (size_t i = 0; i < data.size(); ++i) if (data[i] != 0) return false;
+         for (auto i : data) if (i) return false;
          return true;
       }
 
@@ -750,13 +687,11 @@ namespace uuids
       }
 
    private:
-      void reset() 
+      void reset()
       {
-         hasher.reset();
-         std::byte bytes[16];
+         hasher = {};
          auto nsbytes = nsuuid.as_bytes();
-         std::copy(std::cbegin(nsbytes), std::cend(nsbytes), bytes);
-         hasher.process_bytes(bytes, 16);
+         hasher.process_bytes(nsbytes.data(), nsbytes.size());
       }
 
       template <typename CharT, typename Traits>
@@ -776,8 +711,7 @@ namespace uuids
 
       uuid make_uuid()
       {
-         detail::sha1::digest8_t digest;
-         hasher.get_digest_bytes(digest);
+         auto digest = hasher.get_digest_bytes();
 
          // variant must be 0b10xxxxxx
          digest[8] &= 0xBF;
@@ -787,7 +721,7 @@ namespace uuids
          digest[6] &= 0x5F;
          digest[6] |= 0x50;
 
-         return uuid{ digest, digest + 16 };
+         return uuid{ std::cbegin(digest), std::cbegin(digest) + 16 };
       }
 
    private:
