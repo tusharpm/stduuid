@@ -1,5 +1,6 @@
 #pragma once
 
+#include <climits>
 #include <cstring>
 #include <string>
 #include <sstream>
@@ -53,7 +54,7 @@ namespace uuids
    namespace detail
    {
       template <typename TChar>
-      constexpr inline unsigned char hex2char(TChar const ch)
+      constexpr unsigned char hex2char(TChar const ch)
       {
          if (ch >= static_cast<TChar>('0') && ch <= static_cast<TChar>('9'))
             return ch - static_cast<TChar>('0');
@@ -61,16 +62,13 @@ namespace uuids
             return 10 + ch - static_cast<TChar>('a');
          if (ch >= static_cast<TChar>('A') && ch <= static_cast<TChar>('F'))
             return 10 + ch - static_cast<TChar>('A');
-         return 0;
+         return UCHAR_MAX;
       }
 
       template <typename TChar>
-      constexpr inline bool is_hex(TChar const ch)
+      constexpr bool is_hex(TChar const ch)
       {
-         return
-            (ch >= static_cast<TChar>('0') && ch <= static_cast<TChar>('9')) ||
-            (ch >= static_cast<TChar>('a') && ch <= static_cast<TChar>('f')) ||
-            (ch >= static_cast<TChar>('A') && ch <= static_cast<TChar>('F'));
+         return hex2char(ch) < 16;
       }
 
       template <typename TChar>
