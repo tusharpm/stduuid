@@ -9,7 +9,6 @@
 #include <string_view>
 #include <iterator>
 #include <random>
-#include <memory>
 #include <functional>
 #include <type_traits>
 #include <optional>
@@ -641,9 +640,9 @@ namespace uuids
       using engine_type = UniformRandomNumberGenerator;
 
       explicit basic_uuid_random_generator(engine_type& gen) :
-         generator(&gen, [](auto) {}) {}
+         generator(&gen) {}
       explicit basic_uuid_random_generator(engine_type* gen) :
-         generator(gen, [](auto) {}) {}
+         generator(gen) {}
 
       uuid operator()()
       {
@@ -664,7 +663,7 @@ namespace uuids
 
    private:
       std::uniform_int_distribution<uint32_t>  distribution;
-      std::shared_ptr<UniformRandomNumberGenerator> generator;
+      engine_type* generator; //< non-owning pointer
    };
 
    using uuid_random_generator = basic_uuid_random_generator<std::mt19937>;
