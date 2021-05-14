@@ -91,7 +91,7 @@ namespace uuids
       public:
          using digest8_t = std::array<uint8_t, 20>;
 
-         void process_byte(uint8_t octet) 
+         void process_byte(uint8_t octet)
          {
             this->m_block[this->m_blockByteIndex++] = octet;
             ++this->m_byteCount;
@@ -99,15 +99,6 @@ namespace uuids
             {
                this->m_blockByteIndex = 0;
                process_block();
-            }
-         }
-
-         void process_bytes(void const * const data, size_t const len)
-         {
-            const uint8_t* block = static_cast<const uint8_t*>(data);
-            for (uint8_t octet : span(block, len))
-            {
-               process_byte(octet);
             }
          }
 
@@ -195,10 +186,10 @@ namespace uuids
             while (m_blockByteIndex < 60) {
                process_byte(0);
             }
-            process_byte(static_cast<unsigned char>((bitCount >> 24) & 0xFF));
-            process_byte(static_cast<unsigned char>((bitCount >> 16) & 0xFF));
-            process_byte(static_cast<unsigned char>((bitCount >> 8) & 0xFF));
-            process_byte(static_cast<unsigned char>((bitCount) & 0xFF));
+            process_byte(static_cast<uint8_t>(bitCount >> 24));
+            process_byte(static_cast<uint8_t>(bitCount >> 16));
+            process_byte(static_cast<uint8_t>(bitCount >> 8));
+            process_byte(static_cast<uint8_t>(bitCount));
          }
 
       private:
@@ -687,10 +678,11 @@ namespace uuids
       void reset()
       {
          hasher = {};
-         auto nsbytes = nsuuid.as_bytes();
-         hasher.process_bytes(nsbytes.data(), nsbytes.size());
+         for (auto byte : nsuuid.as_bytes())
+         {
+            hasher.process_byte(static_cast<uint8_t>(byte));
+         }
       }
-
       template <typename CharT, typename Traits>
       void process_characters(std::basic_string_view<CharT, Traits> const str)
       {
